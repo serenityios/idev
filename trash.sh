@@ -89,73 +89,55 @@ build_project() {
 create_code_editor() {
     local folder="$1"
     
+    # Remove old editor.php if it exists
+    rm -f "$folder/editor.php"
+    
     # Create the main editor HTML file
     cat > "$folder/editor.php" <<'PHPEOF'
 <?php
-// Handle AJAX requests first, before any HTML output
 if (isset($_GET['action'])) {
-    switch ($_GET['action']) {
-        case 'list':
-            $files = array();
-            $items = scandir('.');
-            foreach ($items as $item) {
-                if ($item[0] !== '.' && is_file($item) && $item !== 'editor.php') {
-                    $files[] = $item;
-                }
-            }
-            header('Content-Type: text/plain');
-            foreach ($files as $file) {
+    if ($_GET['action'] == 'list') {
+        $files = scandir('.');
+        foreach ($files as $file) {
+            if ($file != '.' && $file != '..' && $file != 'editor.php' && is_file($file)) {
                 echo $file . "\n";
             }
-            exit;
-            
-        case 'read':
-            $file = $_GET['file'];
-            if (file_exists($file) && is_file($file)) {
-                header('Content-Type: text/plain');
-                echo file_get_contents($file);
-            } else {
-                http_response_code(404);
-                echo 'File not found';
-            }
-            exit;
+        }
+        exit;
+    }
+    
+    if ($_GET['action'] == 'read' && isset($_GET['file'])) {
+        $file = $_GET['file'];
+        if (file_exists($file) && is_file($file)) {
+            echo file_get_contents($file);
+        }
+        exit;
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    $action = $_POST['action'];
-    $file = $_POST['file'];
-    
-    switch ($action) {
-        case 'write':
-            $content = $_POST['content'];
-            if (file_put_contents($file, $content) !== false) {
-                echo 'success';
-            } else {
-                echo 'error';
-            }
-            exit;
-            
-        case 'create':
-            if (!file_exists($file)) {
-                if (file_put_contents($file, '') !== false) {
-                    echo 'success';
-                } else {
-                    echo 'error';
-                }
-            } else {
-                echo 'exists';
-            }
-            exit;
-            
-        case 'delete':
-            if (file_exists($file) && unlink($file)) {
-                echo 'success';
-            } else {
-                echo 'error';
-            }
-            exit;
+if ($_POST['action'] == 'write' && isset($_POST['file']) && isset($_POST['content'])) {
+    file_put_contents($_POST['file'], $_POST['content']);
+    echo 'success';
+    exit;
+}
+
+if ($_POST['action'] == 'create' && isset($_POST['file'])) {
+    if (!file_exists($_POST['file'])) {
+        file_put_contents($_POST['file'], '');
+        echo 'success';
+    } else {
+        echo 'exists';
     }
+    exit;
+}
+
+if ($_POST['action'] == 'delete' && isset($_POST['file'])) {
+    if (file_exists($_POST['file']) && unlink($_POST['file'])) {
+        echo 'success';
+    } else {
+        echo 'error';
+    }
+    exit;
 }
 ?>
 <!DOCTYPE html>
