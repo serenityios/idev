@@ -90,13 +90,78 @@ create_code_editor() {
     local folder="$1"
     
     # Create the main editor HTML file
-    cat > "$folder/editor.php" <<'EOF'
+    cat > "$folder/editor.php" <<'PHPEOF'
+<?php
+// Handle AJAX requests first, before any HTML output
+if (isset($_GET['action'])) {
+    switch ($_GET['action']) {
+        case 'list':
+            $files = array();
+            $items = scandir('.');
+            foreach ($items as $item) {
+                if ($item[0] !== '.' && is_file($item) && $item !== 'editor.php') {
+                    $files[] = $item;
+                }
+            }
+            header('Content-Type: text/plain');
+            foreach ($files as $file) {
+                echo $file . "\n";
+            }
+            exit;
+            
+        case 'read':
+            $file = $_GET['file'];
+            if (file_exists($file) && is_file($file)) {
+                header('Content-Type: text/plain');
+                echo file_get_contents($file);
+            } else {
+                http_response_code(404);
+                echo 'File not found';
+            }
+            exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $action = $_POST['action'];
+    $file = $_POST['file'];
+    
+    switch ($action) {
+        case 'write':
+            $content = $_POST['content'];
+            if (file_put_contents($file, $content) !== false) {
+                echo 'success';
+            } else {
+                echo 'error';
+            }
+            exit;
+            
+        case 'create':
+            if (!file_exists($file)) {
+                if (file_put_contents($file, '') !== false) {
+                    echo 'success';
+                } else {
+                    echo 'error';
+                }
+            } else {
+                echo 'exists';
+            }
+            exit;
+            
+        case 'delete':
+            if (file_exists($file) && unlink($file)) {
+                echo 'success';
+            } else {
+                echo 'error';
+            }
+            exit;
+    }
+}
+?>
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iDev Code Editor</title>
+    <title>Code Editor</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
@@ -257,7 +322,6 @@ create_code_editor() {
                     const fileList = document.getElementById('fileList');
                     fileList.innerHTML = '';
                     
-                    // Parse the simple format instead of JSON
                     const files = data.trim().split('\n').filter(f => f.length > 0);
                     files.forEach(file => {
                         const li = document.createElement('li');
@@ -266,6 +330,9 @@ create_code_editor() {
                         li.onclick = () => openFile(file);
                         fileList.appendChild(li);
                     });
+                })
+                .catch(error => {
+                    console.error('Error loading files:', error);
                 });
         }
 
@@ -279,6 +346,10 @@ create_code_editor() {
                     document.querySelectorAll('.file-item').forEach(item => {
                         item.classList.toggle('active', item.textContent === filename);
                     });
+                })
+                .catch(error => {
+                    console.error('Error opening file:', error);
+                    alert('Error opening file');
                 });
         }
 
@@ -300,11 +371,15 @@ create_code_editor() {
             })
             .then(response => response.text())
             .then(result => {
-                if (result === 'success') {
+                if (result.trim() === 'success') {
                     alert('File saved');
                 } else {
                     alert('Error saving file');
                 }
+            })
+            .catch(error => {
+                console.error('Error saving file:', error);
+                alert('Error saving file');
             });
         }
 
@@ -325,13 +400,17 @@ create_code_editor() {
             })
             .then(response => response.text())
             .then(result => {
-                if (result === 'success') {
+                if (result.trim() === 'success') {
                     document.getElementById('newFileName').value = '';
                     loadFiles();
                     openFile(filename);
                 } else {
                     alert('Error creating file');
                 }
+            })
+            .catch(error => {
+                console.error('Error creating file:', error);
+                alert('Error creating file');
             });
         }
 
@@ -355,7 +434,7 @@ create_code_editor() {
             })
             .then(response => response.text())
             .then(result => {
-                if (result === 'success') {
+                if (result.trim() === 'success') {
                     currentFile = null;
                     document.getElementById('codeEditor').value = '';
                     loadFiles();
@@ -363,6 +442,10 @@ create_code_editor() {
                 } else {
                     alert('Error deleting file');
                 }
+            })
+            .catch(error => {
+                console.error('Error deleting file:', error);
+                alert('Error deleting file');
             });
         }
 
@@ -370,72 +453,14 @@ create_code_editor() {
             loadFiles();
         }
 
-        loadFiles();
+        // Load files when page loads
+        window.onload = function() {
+            loadFiles();
+        };
     </script>
 </body>
 </html>
-
-<?php
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
-    switch ($_GET['action']) {
-        case 'list':
-            $files = array_filter(scandir('.'), function($item) {
-                return $item[0] !== '.' && is_file($item) && $item !== 'index.php';
-            });
-            header('Content-Type: application/json');
-            echo json_encode(array_values($files));
-            exit;
-            
-        case 'read':
-            $file = $_GET['file'];
-            if (file_exists($file) && is_file($file)) {
-                header('Content-Type: text/plain');
-                echo file_get_contents($file);
-            } else {
-                http_response_code(404);
-                echo 'File not found';
-            }
-            exit;
-    }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'];
-    $file = $_POST['file'];
-    
-    switch ($action) {
-        case 'write':
-            $content = $_POST['content'];
-            if (file_put_contents($file, $content) !== false) {
-                echo 'success';
-            } else {
-                echo 'error';
-            }
-            exit;
-            
-        case 'create':
-            if (!file_exists($file)) {
-                if (file_put_contents($file, '') !== false) {
-                    echo 'success';
-                } else {
-                    echo 'error';
-                }
-            } else {
-                echo 'exists';
-            }
-            exit;
-            
-        case 'delete':
-            if (file_exists($file) && unlink($file)) {
-                echo 'success';
-            } else {
-                echo 'error';
-            }
-            exit;
-    }
-}
-?>
-EOF
+PHPEOF
 }
 
 open_local_code_editor() {
