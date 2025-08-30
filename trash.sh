@@ -89,8 +89,8 @@ build_project() {
 create_code_editor() {
     local folder="$1"
     
-    # Create index.php as the main file
-    cat > "$folder/index.php" <<'EOF'
+    # Create the main editor HTML file
+    cat > "$folder/editor.php" <<'EOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -251,11 +251,14 @@ create_code_editor() {
         let currentFile = null;
 
         function loadFiles() {
-            fetch('?action=list')
-                .then(response => response.json())
-                .then(files => {
+            fetch('editor.php?action=list')
+                .then(response => response.text())
+                .then(data => {
                     const fileList = document.getElementById('fileList');
                     fileList.innerHTML = '';
+                    
+                    // Parse the simple format instead of JSON
+                    const files = data.trim().split('\n').filter(f => f.length > 0);
                     files.forEach(file => {
                         const li = document.createElement('li');
                         li.className = 'file-item';
@@ -267,7 +270,7 @@ create_code_editor() {
         }
 
         function openFile(filename) {
-            fetch(`?action=read&file=${encodeURIComponent(filename)}`)
+            fetch(`editor.php?action=read&file=${encodeURIComponent(filename)}`)
                 .then(response => response.text())
                 .then(content => {
                     document.getElementById('codeEditor').value = content;
@@ -291,7 +294,7 @@ create_code_editor() {
             formData.append('file', currentFile);
             formData.append('content', content);
 
-            fetch('', {
+            fetch('editor.php', {
                 method: 'POST',
                 body: formData
             })
@@ -316,7 +319,7 @@ create_code_editor() {
             formData.append('action', 'create');
             formData.append('file', filename);
 
-            fetch('', {
+            fetch('editor.php', {
                 method: 'POST',
                 body: formData
             })
@@ -346,7 +349,7 @@ create_code_editor() {
             formData.append('action', 'delete');
             formData.append('file', currentFile);
 
-            fetch('', {
+            fetch('editor.php', {
                 method: 'POST',
                 body: formData
             })
@@ -454,7 +457,7 @@ open_local_code_editor() {
     server_pid=$!
     
     echo -e "${Green}[+] Code Editor is now running!${Reset}"
-    echo -e "${Cyan}[+] Open your browser and go to: ${Magenta}http://127.0.0.1:8000${Reset}"
+    echo -e "${Cyan}[+] Open your browser and go to: ${Magenta}http://127.0.0.1:8000/editor.php${Reset}"
     echo -e "${Yellow}[!] Server is running in background with PID $server_pid${Reset}"
     echo -e "${Yellow}[!] Press Ctrl+C to stop the server when done${Reset}"
     
